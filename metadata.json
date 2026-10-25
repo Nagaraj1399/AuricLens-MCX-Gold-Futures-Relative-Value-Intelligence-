@@ -1,0 +1,6 @@
+{
+  "name": "AuricLens — MCX Gold Futures Relative-Value Intelligence",
+  "description": "Institutional-grade quantitative relative-value intelligence for MCX gold futures. Calendar spreads, cost-of-carry fair value, anomaly detection, explainable signals, and walk-forward backtesting.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
