@@ -23,6 +23,188 @@
 
 ---
 
+## 🏛️ System Architecture & Circuit Diagrams
+
+Evaluators can review the end-to-end architecture and safety circuit design below:
+
+### 1. End-to-End Platform Architecture
+
+```mermaid
+graph TB
+    subgraph Ingestion["1. Data Ingestion & External Inputs"]
+        CSV["Public MCX Bhavcopy CSV"] --> Parser["Bhavcopy Parser & Sanity Validator"]
+        SEBI["SEBI Circulars & MCX Notices"] --> TF["TinyFish Evidence Agent"]
+        Macro["RBI Repo Rate (6.50%) & Vaulting (0.25%)"] --> CostParams["Macro Parameters Engine"]
+    end
+
+    subgraph QuantEngine["2. Quantitative Analytics Engine"]
+        Parser --> Norm["Contract Normalizer\n(Standard: ₹/10g @ 995 fineness)"]
+        Norm --> SpreadEng["Cost-of-Carry Fair Value Engine\nF_fair = P1 * exp((r + c - y) * dt/365)"]
+        Norm --> CostModel["4-Leg Institutional Friction Model\n(Exchange Fee, CTT, GST, Stamp Duty, Brokerage, Slippage)"]
+        CostParams --> SpreadEng
+        SpreadEng --> ZCalc["Rolling 20-Day Z-Score Engine\nZ = (Dislocation - Mean) / StDev"]
+    end
+
+    subgraph RiskCircuits["3. Circuit Breakers & Risk Decision Gateways"]
+        ZCalc --> StatHurdle{"Statistical Hurdle\n|Z| >= 1.80?"}
+        CostModel --> FricHurdle{"Friction Hurdle\nEdge >= 2.0x Friction?"}
+        TF --> TenderGuard{"Tender Period Guard\nDays to Expiry > 5?"}
+        Parser --> LiqGuard{"Liquidity Gate\nOI >= 100 & Vol >= 50?"}
+
+        StatHurdle -- "No" --> RejNoise["REJECTED: Statistical Equilibrium\n(|Z| < 1.80)"]
+        FricHurdle -- "No" --> RejFric["REJECTED: Friction Sub-economic\n(Gross Edge < 2x Costs)"]
+        TenderGuard -- "No" --> RejTender["REJECTED: Physical Delivery Risk\n(Inside T-5 Tender Window)"]
+        LiqGuard -- "No" --> RejLiq["REJECTED: Liquidity Deficit\n(OI / Volume Below Threshold)"]
+
+        StatHurdle -- "Yes" --> GatePass["All Circuits Cleared"]
+        FricHurdle -- "Yes" --> GatePass
+        TenderGuard -- "Yes" --> GatePass
+        LiqGuard -- "Yes" --> GatePass
+
+        GatePass --> Direction{"Dislocation\nDirection?"}
+        Direction -- "Z <= -1.80" --> LongCandidate["ACTIONABLE: LONG SPREAD\n(Buy Front M1 / Sell Next M2)"]
+        Direction -- "Z >= +1.80" --> ShortCandidate["ACTIONABLE: SHORT SPREAD\n(Sell Front M1 / Buy Next M2)"]
+    end
+
+    subgraph Persistence["4. Hybrid Cloud & Local Storage Layer"]
+        SupabaseDB[("Supabase Hosted PostgreSQL\n(contracts, market_data, spread_analyses, backtest_reports)")]
+        LocalCache[("High-Performance Local Cache\n(Verified MCX Fallback Archive)")]
+        LongCandidate --> StorageService["Storage Service API Layer"]
+        ShortCandidate --> StorageService
+        RejNoise --> StorageService
+        RejFric --> StorageService
+        RejTender --> StorageService
+        RejLiq --> StorageService
+        StorageService --> SupabaseDB
+        StorageService --> LocalCache
+    end
+
+    subgraph Presentation["5. Executive Trading & Analytics Interface"]
+        StorageService --> Dash["Executive Dashboard (/)"]
+        StorageService --> SpreadsUI["Relative-Value Spreads (/spreads)"]
+        StorageService --> SignalsUI["Explainable Signals & Audit Trail (/signals)"]
+        StorageService --> ContractsUI["Contracts & Purity Normalizer (/contracts)"]
+        StorageService --> CalUI["Expiry Calendar & Roll Tracker (/calendar)"]
+        StorageService --> BacktestUI["Walk-Forward Backtest Lab (/backtest)"]
+    end
+```
+
+---
+
+### 2. Quantitative Circuit & Signal Decision Logic Diagram
+
+The diagram below details the sequential logic gates and circuit breakers preventing spurious signals or delivery-assigned losses:
+
+```
+[Raw MCX Bhavcopy Bar (Leg 1 & Leg 2)]
+                  │
+                  ▼
+┌─────────────────────────────────────────────────────────────┐
+│ 1. NORMALIZATION CIRCUIT                                    │
+│ Price_Norm = Price_Raw * (10 / Quote_g) * (995 / Purity)     │
+└─────────────────────────────────────────────────────────────┘
+                  │
+                  ▼
+┌─────────────────────────────────────────────────────────────┐
+│ 2. CARRY & FAIR SPREAD VALUATION CIRCUIT                    │
+│ Fair_Spread = Leg1_Norm * (r + c) * (Days_Diff / 365)       │
+│ Dislocation = (Leg2_Norm - Leg1_Norm) - Fair_Spread         │
+│ Z_Score = (Dislocation - Rolling_Mean_20d) / StDev_20d      │
+└─────────────────────────────────────────────────────────────┘
+                  │
+                  ▼
+┌─────────────────────────────────────────────────────────────┐
+│ 3. INSTITUTIONAL 4-LEG FRICTION CALCULATOR                  │
+│ Friction = 4x Brokerage + Turnover + CTT + GST + Slippage   │
+│ Net_Edge = Gross_Dislocation - Total_Friction               │
+└─────────────────────────────────────────────────────────────┘
+                  │
+                  ▼
+      [CIRCUIT 1: TENDER WINDOW GATE]
+                  │
+        Is Days_to_Expiry <= 5?
+       ├─── YES ───► [TRIP CIRCUIT] ──► NO_TRADE (Rejection: Tender Notice Assignment Risk)
+       │
+       └─── NO  ───► Pass to Circuit 2
+                           │
+                           ▼
+               [CIRCUIT 2: LIQUIDITY GATE]
+                           │
+             Is OI < 100 OR Vol < 50?
+            ├─── YES ───► [TRIP CIRCUIT] ──► NO_TRADE (Rejection: Liquidity Execution Deficit)
+            │
+            └─── NO  ───► Pass to Circuit 3
+                                │
+                                ▼
+                   [CIRCUIT 3: STATISTICAL HURDLE]
+                                │
+                      Is |Z_Score| < 1.80?
+                 ├─── YES ───► [TRIP CIRCUIT] ──► NO_TRADE (Rejection: Statistical Equilibrium)
+                 │
+                 └─── NO  ───► Pass to Circuit 4
+                                     │
+                                     ▼
+                        [CIRCUIT 4: ECONOMIC HURDLE]
+                                     │
+                      Is Gross_Edge < 2.0 * Friction?
+                     ├─── YES ───► [TRIP CIRCUIT] ──► NO_TRADE (Rejection: Sub-Economic Friction)
+                     │
+                     └─── NO  ───► ALL CIRCUITS CLEARED
+                                         │
+                                         ▼
+                             [SIGNAL CLASSIFICATION]
+                                         │
+                         ┌───────────────┴───────────────┐
+                         ▼                               ▼
+                 Z_Score <= -1.80                Z_Score >= +1.80
+                         │                               │
+                         ▼                               ▼
+                 LONG_SPREAD ACTION              SHORT_SPREAD ACTION
+             (Buy Leg 1 / Sell Leg 2)        (Sell Leg 1 / Buy Leg 2)
+                         │                               │
+                         └───────────────┬───────────────┘
+                                         ▼
+                     [ATTACH EXPLAINABLE AUDIT TRAIL]
+                     - Deterministic formulas
+                     - Verified regulatory citations
+                     - Hurdle validation scores
+```
+
+---
+
+### 3. TinyFish Regulatory Evidence Loop & Auditor Circuit
+
+The TinyFish Evidence Agent operates as an autonomous regulatory watchdog cross-auditing operational contract parameters against statutory SEBI and MCX rules:
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor Trader as Quant Trader / Evaluator
+    participant UI as AuricLens Web UI
+    participant Agent as TinyFish Evidence Agent
+    participant Reg as MCX / SEBI Public Regulatory Source
+    participant Engine as Signal Engine
+
+    Trader->>UI: Selects Spread Pair (e.g., GOLD Apr25 vs Jun25)
+    UI->>Agent: Query regulatory specs & tender circulars
+    alt Live TinyFish API Connected
+        Agent->>Reg: Autonomous fetch & parse (SEBI/MCX circulars)
+        Reg-->>Agent: Raw tender schedules, quotation rules, CTT rates
+    else Verified Baseline Active
+        Agent->>Agent: Load 9 verified official baseline regulatory records
+    end
+    Agent->>Agent: Cross-audit contract parameters (purity, tender period, quote unit)
+    
+    alt Discrepancy Detected (e.g., Tender window != 5 days)
+        Agent-->>UI: ⚠️ Flag Specification Discrepancy & Halt Signal Execution
+    else Audit Clean (0 Discrepancies)
+        Agent-->>Engine: Attach Verified Audit Trail (Source URLs, Formulas, Hypotheses)
+        Engine-->>UI: Display Signal with Clickable Evidence & Source Attribution
+    end
+```
+
+---
+
 ## 📐 Quantitative & Financial Methodology
 
 ### 1. Quotation Unit and Purity Normalization
