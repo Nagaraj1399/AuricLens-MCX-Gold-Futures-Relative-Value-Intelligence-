@@ -4,7 +4,11 @@
 [![Next.js](https://img.shields.io/badge/Next.js-16.4-black.svg)](https://nextjs.org/)
 [![Tailwind CSS](https://img.shields.io/badge/TailwindCSS-4.0-38bdf8.svg)](https://tailwindcss.com/)
 [![Supabase](https://img.shields.io/badge/Supabase-PostgreSQL-3ecf8e.svg)](https://supabase.com/)
-[![Automated Tests](https://img.shields.io/badge/Tests-36%20Passed%20%7C%200%20Failed-emerald.svg)]()
+[![Automated Tests](https://img.shields.io/badge/Tests-44%20Passed%20%7C%200%20Failed-emerald.svg)]()
+[![Live Demo](https://img.shields.io/badge/Live%20App-Open%20Platform-f59e0b?style=for-the-badge&logo=google&logoColor=white)](https://auriclens-mcx-gold-futures-relative-value-intelli.ai.studio/)
+
+### 🌐 Live Application Deployment
+🚀 **Live URL**: **[https://auriclens-mcx-gold-futures-relative-value-intelli.ai.studio/](https://auriclens-mcx-gold-futures-relative-value-intelli.ai.studio/)**
 
 > **AuricLens** is an institutional-grade, responsive relative-value quantitative intelligence web application for Multi Commodity Exchange of India (MCX) gold futures. It features a bespoke dark navy-and-gold fintech UI, contract normalization for quotation units and purity fineness, cost-of-carry fair value modeling, explainable signals with explicit rejection reasons, and walk-forward backtesting without look-ahead bias.
 
@@ -271,14 +275,17 @@ AuricLens includes a single copy-paste SQL setup script: [`supabase_schema.sql`]
 - Node.js v18+ (tested on Node v24)
 - npm v9+
 
+### Live Hosted Application:
+👉 **[https://auriclens-mcx-gold-futures-relative-value-intelli.ai.studio/](https://auriclens-mcx-gold-futures-relative-value-intelli.ai.studio/)**
+
 ### 1. Clone & Install Dependencies
 ```bash
-git clone https://github.com/Thanya113/ManaliHackathon.git
-cd ManaliHackathon
+git clone https://github.com/nifasathfarhanak/manalihackathon.git
+cd manalihackathon
 npm install
 ```
 
-### 2. Run Automated Test Suite (36 Tests)
+### 2. Run Automated Test Suite (44 Tests)
 ```bash
 npm test
 ```
